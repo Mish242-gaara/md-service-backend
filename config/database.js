@@ -60,7 +60,7 @@ const createDefaultAdmin = async () => {
     const bcrypt = require('bcryptjs');
 
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@mdservice.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@MDService2026';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@MDService2024';
 
     const existing = await Admin.findOne({ where: { email: adminEmail } });
 
