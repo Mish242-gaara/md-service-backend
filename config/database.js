@@ -3,7 +3,7 @@
 // =============================================
 const { Sequelize } = require('sequelize');
 
-// On utilise DATABASE_URL pour la production (Neon), sinon on garde les variables locales
+// Utilisation de DATABASE_URL pour la production (Neon), sinon variables locales
 const isProduction = process.env.NODE_ENV === 'production';
 
 const sequelize = isProduction 
@@ -13,14 +13,14 @@ const sequelize = isProduction
       dialectOptions: {
         ssl: {
           require: true,
-          rejectUnauthorized: false // CRITIQUE pour Neon/Render
+          rejectUnauthorized: false // Indispensable pour Neon/Render
         }
       }
     })
   : new Sequelize(
-      process.env.DB_NAME,
-      process.env.DB_USER,
-      process.env.DB_PASSWORD,
+      process.env.DB_NAME || 'mdservice',
+      process.env.DB_USER || 'postgres',
+      process.env.DB_PASSWORD || 'root',
       {
         host: process.env.DB_HOST || 'localhost',
         port: process.env.DB_PORT || 5432,
@@ -38,18 +38,19 @@ const sequelize = isProduction
 const connectDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ PostgreSQL connecté avec succès');
+    console.log('✅ PostgreSQL connecté avec succès (Neon)');
 
-    // Synchroniser tous les modèles
-    // { alter: true } permet de mettre à jour les tables sans les supprimer
+    // Synchronisation des modèles
+    // alter: true met à jour les colonnes sans vider les données existantes
     await sequelize.sync({ alter: true });
     console.log('✅ Tables synchronisées');
 
-    // Créer l'admin par défaut
+    // Vérification/Création de l'admin
     await createDefaultAdmin();
   } catch (error) {
     console.error('❌ Erreur PostgreSQL:', error.message);
-    process.exit(1);
+    // On ne coupe pas le processus immédiatement pour permettre des logs sur Render
+    setTimeout(() => process.exit(1), 1000);
   }
 };
 
@@ -62,17 +63,26 @@ const createDefaultAdmin = async () => {
     const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@MDService2026';
 
     const existing = await Admin.findOne({ where: { email: adminEmail } });
+
     if (!existing) {
+      // Création si l'admin n'existe pas
       const hashed = await bcrypt.hash(adminPassword, 12);
       await Admin.create({
         name: 'Administrateur MD Service',
         email: adminEmail,
         password: hashed,
       });
-      console.log(`👤 Admin créé: ${adminEmail}`);
+      console.log(`👤 Compte Admin initial créé : ${adminEmail}`);
+    } else {
+      // MISE À JOUR : Si tu changes le mot de passe dans les variables Render, 
+      // il sera mis à jour en base de données au prochain redémarrage.
+      const hashed = await bcrypt.hash(adminPassword, 12);
+      existing.password = hashed;
+      await existing.save();
+      console.log(`✅ Identifiants Admin vérifiés/mis à jour pour : ${adminEmail}`);
     }
   } catch (err) {
-    console.error('Erreur création admin:', err.message);
+    console.error('⚠️ Erreur création/maj admin:', err.message);
   }
 };
 

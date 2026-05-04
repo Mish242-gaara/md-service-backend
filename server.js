@@ -16,20 +16,26 @@ connectDB();
 
 // ── Middlewares ───────────────────────────────
 
-// Configuration CORS pour MD Service
+// Configuration CORS dynamique pour MD Service
 const allowedOrigins = [
   'http://localhost:3000',
-  'https://md-service.vercel.app' // Ton URL Vercel
+  'https://md-service.vercel.app',
+  'https://md-service-frontend.vercel.app'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Autoriser les requêtes sans origine (Postman, etc.)
+    // 1. Autoriser les requêtes sans origine (comme Postman ou les mobiles)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+    // 2. Autoriser si l'URL est dans la liste ou est un sous-domaine de vercel.app
+    const isAllowed = allowedOrigins.indexOf(origin) !== -1;
+    const isVercelPreview = origin.endsWith('.vercel.app');
+    
+    if (isAllowed || isVercelPreview || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
+      console.log('🚫 Origine bloquée par CORS:', origin);
       callback(new Error('Refusé par la politique CORS de MD Service'));
     }
   },
@@ -42,11 +48,10 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan('dev'));
 
-// ── Fichiers statiques ────────────────────────
+// ── Fichiers statiques uploadés ───────────────
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ── Routes API ────────────────────────────────
-// Nous gardons le préfixe /api qui est une bonne pratique
 app.use('/api/auth',          require('./routes/auth'));
 app.use('/api/apartments',    require('./routes/apartments'));
 app.use('/api/cars',          require('./routes/cars'));
@@ -65,7 +70,6 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── 404 & Redirection de secours ──────────────
-// Si le frontend oublie /api, ce middleware tente d'aider ou renvoie 404
 app.use((req, res) => {
   console.log(`⚠️ Route non trouvée : ${req.method} ${req.url}`);
   res.status(404).json({ 
@@ -84,5 +88,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`\n🚀 MD Service API démarrée sur le port ${PORT}`);
   console.log(`🌍 Mode: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Frontend autorisé: ${allowedOrigins.join(', ')}`);
+  console.log(`🔗 Domaines autorisés: ${allowedOrigins.join(', ')} et *.vercel.app`);
 });
