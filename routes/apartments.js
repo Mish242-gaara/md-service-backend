@@ -20,6 +20,7 @@ router.get('/', async (req, res) => {
     if (req.query.featured  === 'true') where.featured    = true;
     if (req.query.location)
       where.location = { [Op.iLike]: `%${req.query.location}%` };
+    
     if (req.query.minPrice || req.query.maxPrice) {
       where.pricePerNight = {};
       if (req.query.minPrice) where.pricePerNight[Op.gte] = req.query.minPrice;
@@ -36,7 +37,9 @@ router.get('/', async (req, res) => {
     res.json({
       apartments: rows,
       pagination: {
-        page, limit, total: count,
+        page, 
+        limit, 
+        total: count,
         totalPages: Math.ceil(count / limit),
         hasNext: page < Math.ceil(count / limit),
         hasPrev: page > 1,
@@ -64,12 +67,20 @@ router.get('/featured', async (req, res) => {
 // GET /api/apartments/:id
 router.get('/:id', async (req, res) => {
   try {
-    const apt = await Apartment.findByPk(req.params.id);
+    const { id } = req.params;
+
+    // SÉCURITÉ : Empêche Sequelize de planter si l'ID est "undefined" (Erreur 500 dans Render)
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'ID de l’appartement invalide ou manquant' });
+    }
+
+    const apt = await Apartment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Appartement non trouvé' });
+    
     await apt.increment('views');
     res.json(apt);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur lors de la récupération', error: err.message });
   }
 });
 
@@ -82,33 +93,52 @@ router.post('/', protect, [
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+  
   try {
     const apt = await Apartment.create(req.body);
-    res.status(201).json({ message: 'Appartement créé', apartment: apt });
+    res.status(201).json({ message: 'Appartement créé avec succès', apartment: apt });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur lors de la création', error: err.message });
   }
 });
 
 // PUT /api/apartments/:id (admin)
 router.put('/:id', protect, async (req, res) => {
   try {
-    const apt = await Apartment.findByPk(req.params.id);
+    const { id } = req.params;
+
+    // SÉCURITÉ : Vérification de l'ID avant la mise à jour
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'ID invalide pour la modification' });
+    }
+
+    const apt = await Apartment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Appartement non trouvé' });
+    
     await apt.update(req.body);
     res.json({ message: 'Appartement mis à jour', apartment: apt });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur lors de la mise à jour', error: err.message });
   }
 });
 
 // PATCH /api/apartments/:id/availability (admin)
 router.patch('/:id/availability', protect, async (req, res) => {
   try {
-    const apt = await Apartment.findByPk(req.params.id);
+    const { id } = req.params;
+
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'ID invalide' });
+    }
+
+    const apt = await Apartment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Appartement non trouvé' });
+    
     await apt.update({ isAvailable: req.body.isAvailable });
-    res.json({ message: `Marqué comme ${req.body.isAvailable ? 'disponible' : 'loué'}`, apartment: apt });
+    res.json({ 
+      message: `Marqué comme ${req.body.isAvailable ? 'disponible' : 'loué'}`, 
+      apartment: apt 
+    });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
@@ -117,12 +147,19 @@ router.patch('/:id/availability', protect, async (req, res) => {
 // DELETE /api/apartments/:id (admin)
 router.delete('/:id', protect, async (req, res) => {
   try {
-    const apt = await Apartment.findByPk(req.params.id);
+    const { id } = req.params;
+
+    if (!id || id === 'undefined') {
+      return res.status(400).json({ message: 'ID invalide pour la suppression' });
+    }
+
+    const apt = await Apartment.findByPk(id);
     if (!apt) return res.status(404).json({ message: 'Appartement non trouvé' });
+    
     await apt.destroy();
-    res.json({ message: 'Appartement supprimé' });
+    res.json({ message: 'Appartement supprimé définitivement' });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur lors de la suppression', error: err.message });
   }
 });
 
