@@ -6,10 +6,11 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const https = require('https'); // Ajouté pour le Self-Ping
 const { connectDB } = require('./config/database');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 // ── Connexion PostgreSQL ──────────────────────
 connectDB();
@@ -85,8 +86,20 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ── Lancement du serveur ──────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚀 MD Service API démarrée sur le port ${PORT}`);
   console.log(`🌍 Mode: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Domaines autorisés: ${allowedOrigins.join(', ')} et *.vercel.app`);
+
+  // ── Système de Self-Ping (Garder Render éveillé) ──
+  // S'exécute toutes les 5 minutes
+  setInterval(() => {
+    const url = 'https://md-service-backend.onrender.com/api/health';
+    https.get(url, (res) => {
+      console.log(`[Self-Ping] Status: ${res.statusCode} - Serveur maintenu éveillé.`);
+    }).on('error', (err) => {
+      console.error(`[Self-Ping] Erreur: ${err.message}`);
+    });
+  }, 5 * 60 * 1000); 
 });
